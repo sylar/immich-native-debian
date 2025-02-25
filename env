@@ -12,13 +12,14 @@ DB_DATABASE_NAME=immich
 DB_VECTOR_EXTENSION=pgvector
 
 # The location where your uploaded files are stored
-UPLOAD_LOCATION=./library
+UPLOAD_LOCATION=/media/immich
+IMMICH_MEDIA_LOCATION=/media/photos
 
 # The Immich version to use. You can pin this to a specific version like "v1.71.0"
 IMMICH_VERSION=release
 
 # Hosts & ports
-IMMICH_HOST=127.0.0.1
+IMMICH_HOST=0.0.0.0
 DB_HOSTNAME=127.0.0.1
 IMMICH_MACHINE_LEARNING_URL=http://127.0.0.1:3003
 REDIS_HOSTNAME=127.0.0.1

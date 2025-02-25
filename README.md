@@ -1,184 +1,332 @@
-# Native Immich
+# Native Immich Installation Guide
 
-This repository provides instructions and helper scripts to install [Immich](https://github.com/immich-app/immich) without Docker, natively.
+This guide provides instructions and helper scripts to install [Immich](https://github.com/immich-app/immich) natively (without Docker) on a Proxmox LXC container. It’s an updated version of [Immich Native](https://github.com/arter97/immich-native/tree/master) adapted for a setup that uses:
+- Proxmox and LXC containers
+- An NVIDIA GeForce 1080ti for GPU transcoding and machine learning
+- Custom builds for [libvips](https://github.com/libvips/libvips) and [sharp](https://www.npmjs.com/package/sharp) to support HEIC/HEIF thumbnails
 
-### Notes
+*Note: Officially, Immich can be installed via Docker, but this guide avoids excessive virtualization.*
 
- * This is tested on Ubuntu 22.04 (on both x86 and aarch64) as the host distro, but it will be similar on other distros. If you want to run this on a macOS, see [4v3ngR's unofficial macOS port](https://github.com/4v3ngR/immich-native-macos).
+---
 
- * This guide installs Immich to `/var/lib/immich`. To change it, replace it to the directory you want in this README and `install.sh`'s `$IMMICH_PATH`.
+## Table of Contents
+- [Native Immich Installation Guide](#native-immich-installation-guide)
+  - [Table of Contents](#table-of-contents)
+  - [Prerequisites](#prerequisites)
+  - [Preparing the LXC Container](#preparing-the-lxc-container)
+    - [NFS Setup](#nfs-setup)
+    - [NVIDIA GPU Setup](#nvidia-gpu-setup)
+  - [Installing Required Software](#installing-required-software)
+    - [Node.js](#nodejs)
+    - [PostgreSQL](#postgresql)
+    - [Redis](#redis)
+    - [FFMPEG (Jellyfin version)](#ffmpeg-jellyfin-version)
+    - [ImageMagick](#imagemagick)
+    - [libvips](#libvips)
+  - [Cloning and Setting Up Immich Native](#cloning-and-setting-up-immich-native)
+    - [Environment Preparation](#environment-preparation)
+    - [Database Setup](#database-setup)
+    - [Immich Installation \& Configuration](#immich-installation--configuration)
+  - [Using the Custom install.sh Script](#using-the-custom-installsh-script)
+  - [Installation Completion \& Verification](#installation-completion--verification)
+  - [Uninstallation Instructions](#uninstallation-instructions)
+  - [Acknowledgements](#acknowledgements)
 
- * The [install.sh](install.sh) script currently is using Immich v1.126.1. It should be noted that due to the fast-evolving nature of Immich, the install script may get broken if you replace the `$REV` to something more recent.
+---
 
- * `mimalloc` is deliberately disabled as this is a native install and sharing system library makes more sense.
+## Prerequisites
 
- * `pgvector` is used instead of `pgvecto.rs` that the official Immich uses to remove an additional Rust build dependency.
+- Proxmox with LXC containers
+- An NVIDIA GPU (GeForce 1080ti recommended)
+- Basic Linux command-line knowledge
 
- * Microservice and machine-learning's host is opened to 0.0.0.0 in the default configuration. This behavior is changed to only accept 127.0.0.1 during installation.
+---
 
- * Only the basic CPU configuration is used. Hardware-acceleration such as CUDA is unsupported. In my personal experience, importing about 10K photos on a x86 processor doesn't take an unreasonable amount of time (less than 30 minutes).
+## Preparing the LXC Container
+### NFS Setup
+1. Install NFS common:
+   ```bash
+   sudo apt install nfs-common -y
+   ```
+2. Update `/etc/fstab` to enable auto-mount of your storage.
 
- * JPEG XL support may differ official Immich due to base-image's dependency differences.
+### NVIDIA GPU Setup
+1. Install the NVIDIA driver (without the kernel module):
+   ```bash
+   ./NVIDIA-Linux-x86_64-550.120.run --no-kernel-module
+   ```
+2. Install CUDA:
+   ```bash
+   wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
+   sudo dpkg -i cuda-keyring_1.1-1_all.deb
+   sudo apt-get update
+   sudo apt-get -y install cuda-toolkit-12-6
+   echo 'export PATH=/usr/local/cuda-12.6/bin:$PATH' >> ~/.bashrc
+   source ~/.bashrc
+   nvcc --version
+   ```
 
-## 1. Install dependencies
+---
 
- * [Node.js](https://github.com/nodesource/distributions)
+## Installing Required Software
 
- * [PostgreSQL](https://www.postgresql.org/download/linux)
+### Node.js
 
- * [Redis](https://redis.io/docs/install/install-redis/install-redis-on-linux)
+1. Setup Node.js LTS:
+   ```bash
+   curl -fsSL https://deb.nodesource.com/setup_lts.x -o nodesource_setup.sh
+   sudo -E bash nodesource_setup.sh
+   sudo apt update
+   sudo apt install nodejs -y
+   node -v # Expect something like v22.14.0
+   npm -v # Expect something like 10.9.2
+   ```
 
-As the time of writing, Node.js v22 LTS, PostgreSQL 17 and Redis 7.4.1 was used.
+### PostgreSQL
 
- * [pgvector](https://github.com/pgvector/pgvector)
+1. Install PostgreSQL and required packages:
+   ```bash
+   sudo apt install -y curl ca-certificates gnupg lsb-release
+   curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/postgresql-keyring.gpg
+   echo "deb [signed-by=/usr/share/keyrings/postgresql-keyring.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+   sudo apt update
+   sudo apt install -y postgresql-17 postgresql-17-pgvector
+   sudo systemctl enable postgresql
+   sudo systemctl start postgresql
+   ```
 
-pgvector is included in the official PostgreSQL's APT repository:
+### Redis
 
-``` bash
-sudo apt install postgresql(-17)-pgvector
-```
+1. Install and verify Redis:
+   ```bash
+   sudo apt install -y redis-server
+   sudo systemctl enable redis-server
+   sudo systemctl start redis-server
+   redis-cli ping # Should return "PONG"
+   ```
 
- * [FFmpeg](https://github.com/FFmpeg/FFmpeg)
+### FFMPEG (Jellyfin version)
 
-Immich uses FFmpeg to process media.
+1. Install Jellyfin ffmpeg:
+   ```bash
+   sudo apt install -y curl gnupg apt-transport-https
+   sudo mkdir -p /etc/apt/keyrings
+   curl -fsSL https://repo.jellyfin.org/jellyfin_team.gpg.key | gpg --dearmor -o /etc/apt/keyrings/jellyfin.gpg
+   echo "deb [signed-by=/etc/apt/keyrings/jellyfin.gpg] https://repo.jellyfin.org/debian bookworm main" | sudo tee /etc/apt/sources.list.d/jellyfin.list
+   sudo apt update
+   sudo apt install -y jellyfin-ffmpeg7
+   sudo ln -sf /usr/lib/jellyfin-ffmpeg/ffmpeg /usr/bin/ffmpeg
+   sudo ln -sf /usr/lib/jellyfin-ffmpeg/ffprobe /usr/bin/ffprobe
+   ffmpeg -version # Check for "Jellyfin" in the version output
+   ```
 
-FFmpeg provided by the distro is typically too old.
-Either install it from [jellyfin](https://github.com/jellyfin/jellyfin-ffmpeg/releases)
-or use [FFmpeg Static Builds](https://johnvansickle.com/ffmpeg) and install it to `/usr/bin`.
+### ImageMagick
 
-### Other APT packages
+1. Install ImageMagick development libraries:
+   ```bash
+   sudo apt install -y libmagickwand-dev
+   ```
 
-``` bash
-sudo apt install --no-install-recommends \
-        python3-venv \
-        python3-dev \
-        uuid-runtime \
-        autoconf \
-        build-essential \
-        unzip \
-        jq \
-        perl \
-        libnet-ssleay-perl \
-        libio-socket-ssl-perl \
-        libcapture-tiny-perl \
-        libfile-which-perl \
-        libfile-chdir-perl \
-        libpkgconfig-perl \
-        libffi-checklib-perl \
-        libtest-warnings-perl \
-        libtest-fatal-perl \
-        libtest-needs-perl \
-        libtest2-suite-perl \
-        libsort-versions-perl \
-        libpath-tiny-perl \
-        libtry-tiny-perl \
-        libterm-table-perl \
-        libany-uri-escape-perl \
-        libmojolicious-perl \
-        libfile-slurper-perl \
-        liblcms2-2 \
-        wget
-```
+### libvips
 
-A separate Python's virtualenv will be stored to `/var/lib/immich`.
+1. **Install Requirements:**
+   ```bash
+   sudo apt update
+   sudo apt install -y git cmake meson ninja-build build-essential pkg-config \
+  libglib2.0-dev libjpeg-dev libpng-dev libtiff-dev libexif-dev libxml2-dev liborc-0.4-dev \
+  libaom-dev libarchive-dev libcairo2-dev libcgif-dev libexpat1-dev libffi-dev libfontconfig1-dev libfreetype-dev \
+  libfribidi-dev libharfbuzz-dev libheif-dev libimagequant-dev liblcms2-dev libpango1.0-dev libpixman-1-dev \
+  librsvg2-dev libspng-dev libwebp-dev zlib1g-dev libcgif-dev libcfitsio-dev libopenslide-dev libmatio-dev \
+  libpoppler-glib-dev
+  ```
 
-## 2. Prepare `immich` user
+2. **Compile nifti_clib:**
+   ```bash
+   cd ~
+   git clone https://github.com/neurolabusc/nifti_clib.git
+   cd nifti_clib
+   mkdir build && cd build
+   cmake -DCMAKE_INSTALL_PREFIX=/usr/local ..
+   make -j$(nproc)
+   sudo make install
+   ```
 
-This guide isolates Immich to run on a separate `immich` user.
+3. **Compile libvips:**
+   ```bash
+   cd ~
+   git clone https://github.com/libvips/libvips.git
+   cd libvips
+   sudo meson setup build --prefix=/usr/local --buildtype=release \
+  -Dopenjpeg=enabled -Dimagequant=enabled -Dheif=enabled -Dpoppler=enabled \
+  -Drsvg=enabled -Dopenexr=enabled -Dopenslide=enabled -Dmatio=enabled \
+  -Dnifti=enabled -Dcfitsio=enabled -Dcgif=enabled -Dmagick=enabled
+  sudo ninja -C build
+  sudo ninja -C build install
+  sudo ldconfig
+   ```
 
-This provides basic permission isolation and protection.
+4. **Verify Installation:**
+   ```bash
+   vips --version
+   pkg-config --modversion vips
+   ```
 
-``` bash
-sudo adduser \
-  --home /var/lib/immich/home \
-  --shell=/sbin/nologin \
-  --no-create-home \
-  --disabled-password \
-  --disabled-login \
-  immich
-sudo mkdir -p /var/lib/immich
-sudo chown immich:immich /var/lib/immich
-sudo chmod 700 /var/lib/immich
-```
+---
 
-## 3. Prepare PostgreSQL DB
+## Cloning and Setting Up Immich Native
 
-Create a strong random string to be used with PostgreSQL immich database.
+### Environment Preparation
 
-You need to save this and write to the `env` file later.
+1. **Clone the Repository:**
+  ```bash
+  cd ~
+  git clone https://github.com/arter97/immich-native
+  cd immich-native
+  ```
 
-``` bash
-sudo -u postgres psql
-postgres=# create database immich;
-postgres=# create user immich with encrypted password 'YOUR_STRONG_RANDOM_PW';
-postgres=# grant all privileges on database immich to immich;
-postgres=# ALTER USER immich WITH SUPERUSER;
-postgres=# CREATE EXTENSION IF NOT EXISTS vector;
-postgres=# \q
-```
+2. **Add Immich User:**
+  ```bash
+  sudo adduser --home /var/lib/immich/home --shell=/sbin/nologin --no-create-home --disabled-password --disabled-login immich
+  sudo mkdir -p /var/lib/immich
+  sudo chown immich:immich /var/lib/immich
+  sudo chmod 700 /var/lib/immich
+  ```
 
-## 4. Prepare `env`
+### Database Setup
 
-Save the [env](env) file to `/var/lib/immich`, and configure on your own.
+1. **Create the Database and User:**
+   ```bash
+   sudo -u postgres psql
+   ```
 
-You'll only have to set `DB_PASSWORD`.
+   Then inside the PostgreSQL shell, run:
+   ```sql
+   create database immich;
+   create user immich_user with encrypted password 'YOUR_STRONG_RANDOM_PW';
+   grant all privileges on database immich to immich_user;
+   ALTER USER immich_user WITH SUPERUSER;
+   CREATE EXTENSION IF NOT EXISTS vector;
+   \q
+   ```
 
-``` bash
-sudo cp env /var/lib/immich
-sudo chown immich:immich /var/lib/immich/env
-```
+### Immich Installation & Configuration
 
-## 5. Build and install Immich
+1. **Install Additional Dependencies:**
+   ```bash
+   sudo apt install --no-install-recommends -y \
+     python3-venv python3-dev uuid-runtime autoconf build-essential unzip jq perl \
+     libnet-ssleay-perl libio-socket-ssl-perl libcapture-tiny-perl libfile-which-perl \
+     libfile-chdir-perl libpkgconfig-perl libffi-checklib-perl libtest-warnings-perl \
+     libtest-fatal-perl libtest-needs-perl libtest2-suite-perl libsort-versions-perl \
+     libpath-tiny-perl libtry-tiny-perl libterm-table-perl libany-uri-escape-perl \
+     libmojolicious-perl libfile-slurper-perl liblcms2-2 wget
+   ```
 
-Clone this repository to somewhere anyone can access (like /tmp) and run `install.sh` as root.
+2. **Define the Application Location:**
+   Choose `/opt/immich` as the installation directory:
+   ```bash
+   sudo mkdir /opt/immich
+   ```
 
-Anytime Immich is updated, all you have to do is run it again.
+3. **Prepare Required Media Directories:**
+   Immich expects specific folders (refer to [Immich System Integrity](https://immich.app/docs/administration/system-integrity)). Create them as follows:
+   ```bash
+   for dir in encoded-video library upload profile thumbs backups; do
+     sudo mkdir -p /media/photos/$dir
+     sudo touch /media/photos/$dir/.immich
+   done
+   ```
 
-In summary, the `install.sh` script does the following:
+4. **Configure the Environment File:**
+   Update the `env` file with:
+   - `DB_USERNAME=immich_user`
+   - `DB_PASSWORD=YOUR_STRONG_RANDOM_PW`
+   - `IMMICH_HOST=0.0.0.0`
+   - `UPLOAD_LOCATION=/media/photos`
+   - `IMMICH_MEDIA_LOCATION=/media/photos`
 
-#### 1. Clones and builds Immich.
+   Then copy it to the installation directory:
+   ```bash
+   sudo cp env /opt/immich/
+   sudo chown immich:immich /opt/immich/env
+   ```
 
-#### 2. Installs Immich to `/var/lib/immich` with minor patches.
+---
+## Using the Custom install.sh Script 
 
-  * Sets up a dedicated Python venv to `/var/lib/immich/app/machine-learning/venv`.
+Your local `install.sh` script already includes all the necessary modifications compared to the original repository. These customizations are:
 
-  * Replaces `/usr/src` to `/var/lib/immich`.
+- **Application Location:** The script is set to use `/opt/immich` as the installation directory:
+  ```bash 
+  IMMICH_PATH=/opt/immich 
+  ```
 
-  * Limits listening host from 0.0.0.0 to 127.0.0.1. If you do not want this to happen (make sure you fully understand the security risks!), comment out the `sed` command in `install.sh`'s "Use 127.0.0.1" part.
+- **Install Sharp with Custom Options:** Instead of the default command, the script installs Sharp using:
+  ```bash 
+  npm install node-addon-api node-gyp
+  SHARP_LIBVIPS_EXTERNAL=1 PKG_CONFIG_PATH=/usr/local/lib/pkgconfig npm install --build-from-scratch sharp 
+  ```
 
-## Done!
+- **Network Binding:** The section that forces binding to `127.0.0.1` is commented out, allowing Immich to listen on all interfaces.
 
-Your Immich installation should be running at 2283 port, listening from localhost (127.0.0.1).
+Simply run your custom script to proceed with the installation: 
+```bash 
+./install.sh 
+``` 
 
-Immich will additionally use localhost's 3003 ports.
+--- 
 
-Please add firewall rules and apply https proxy and secure your Immich instance.
+## Installation Completion & Verification 
 
-## Uninstallation
+After running the installation script:
+- The Immich application should be available at [http://localhost:2283](http://localhost:2283).
+- Immich will automatically start at system boot.
+- You can now install the mobile app from your preferred app store to enjoy all its features.
 
-``` bash
-# Run as root!
+--- 
 
-# Remove Immich systemd services
-systemctl list-unit-files --type=service | grep "^immich" | while read i unused; do
-  systemctl stop $i
-  systemctl disable $i
-done
-rm /lib/systemd/system/immich*.service
-systemctl daemon-reload
+## Uninstallation Instructions 
 
-# Remove Immich files
-rm -rf /var/lib/immich
+To uninstall Immich, follow these steps:
 
-# Delete immich user
-deluser immich
+1. **Remove Systemd Services:** 
+   ```bash 
+   systemctl list-unit-files --type=service | grep "^immich" | while read i unused; do
+     sudo systemctl stop $i
+     sudo systemctl disable $i
+   done
 
-# Remove Immich DB
-sudo -u postgres psql
-postgres=# drop database immich;
-postgres=# drop user immich;
-postgres=# \q
+   sudo rm /lib/systemd/system/immich*.service
+   sudo systemctl daemon-reload
+   ```
 
-# Optionally remove dependencies
-# Review /var/log/apt/history.log and remove packages you've installed
-```
+2. **Remove Immich Files:** 
+   ```bash 
+   sudo rm -rf /opt/immich 
+   ```
+
+3. **Delete Immich User:** 
+   ```bash 
+   sudo deluser immich 
+   ```
+
+4. **Remove the Immich Database:** 
+   ```bash 
+   sudo -u postgres psql 
+   ```
+
+   Then run: 
+   ```sql 
+   drop database immich; 
+   drop user immich_user; 
+   \q 
+   ```
+
+5. **Optionally Remove Dependencies:** 
+   Review `/var/log/apt/history.log` to remove packages installed specifically for Immich.
+
+--- 
+
+## Acknowledgements 
+
+Thanks to the original [arter97/immich-native](https://github.com/arter97/immich-native/tree/master) project for providing the base work. Contributions and improvements are welcome via pull requests.

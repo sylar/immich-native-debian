@@ -12,9 +12,9 @@ Type=simple
 Restart=on-failure
 UMask=0077
 
-WorkingDirectory=/var/lib/immich/app
-EnvironmentFile=/var/lib/immich/env
-ExecStart=node /var/lib/immich/app/dist/main
+WorkingDirectory=/opt/immich/app
+EnvironmentFile=/opt/immich/env
+ExecStart=node /opt/immich/app/dist/main
 
 SyslogIdentifier=immich
 StandardOutput=append:/var/log/immich/immich.log

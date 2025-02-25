@@ -4,15 +4,15 @@ set -xeuo pipefail
 
 REV=v1.126.1
 
-IMMICH_PATH=/var/lib/immich
+IMMICH_PATH=/opt/immich
 APP=$IMMICH_PATH/app
 
 if [[ "$USER" != "immich" ]]; then
   # Disable systemd services, if installed
   (
     systemctl list-unit-files --type=service | grep "^immich" | while read i unused; do
-      systemctl stop $i && \
-        systemctl disable $i && \
+      systemctl stop $i &&
+        systemctl disable $i &&
         rm /*/systemd/system/$i &&
         systemctl daemon-reload
     done
@@ -47,7 +47,7 @@ mkdir -p $APP
 # This expects immich user's home directory to be on $IMMICH_PATH/home
 rm -rf $IMMICH_PATH/home
 mkdir -p $IMMICH_PATH/home
-echo 'umask 077' > $IMMICH_PATH/home/.bashrc
+echo 'umask 077' >$IMMICH_PATH/home/.bashrc
 
 TMP=/tmp/immich-$(uuidgen)
 if [[ $REV =~ ^[0-9A-Fa-f]+$ ]]; then
@@ -61,13 +61,13 @@ git reset --hard $REV
 rm -rf .git
 
 # Use 127.0.0.1
-find . -type f \( -name '*.ts' -o -name '*.js' \) -exec grep app.listen {} + | \
-  sed 's/.*app.listen//' | grep -v '()' | grep '^(' | \
-  tr -d "[:blank:]" | awk -F"[(),]" '{print $2}' | sort | uniq | while read port; do
-    find . -type f \( -name '*.ts' -o -name '*.js' \) -exec sed -i -e "s@app.listen(${port})@app.listen(${port}, '127.0.0.1')@g" {} +
-done
-find . -type f \( -name '*.ts' -o -name '*.js' \) -exec sed -i -e "s@PrometheusExporter({ port })@PrometheusExporter({ host: '127.0.0.1', port: port })@g" {} +
-grep -RlE "\"0\.0\.0\.0\"|'0\.0\.0\.0'" | xargs -n1 sed -i -e "s@'0\.0\.0\.0'@'127.0.0.1'@g" -e 's@"0\.0\.0\.0"@"127.0.0.1"@g'
+#find . -type f \( -name '*.ts' -o -name '*.js' \) -exec grep app.listen {} + | \
+#  sed 's/.*app.listen//' | grep -v '()' | grep '^(' | \
+#  tr -d "[:blank:]" | awk -F"[(),]" '{print $2}' | sort | uniq | while read port; do
+#    find . -type f \( -name '*.ts' -o -name '*.js' \) -exec sed -i -e "s@app.listen(${port})@app.listen(${port}, '127.0.0.1')@g" {} +
+#done
+#find . -type f \( -name '*.ts' -o -name '*.js' \) -exec sed -i -e "s@PrometheusExporter({ port })@PrometheusExporter({ host: '127.0.0.1', port: port })@g" {} +
+# grep -RlE "\"0\.0\.0\.0\"|'0\.0\.0\.0'" | xargs -n1 sed -i -e "s@'0\.0\.0\.0'@'127.0.0.1'@g" -e 's@"0\.0\.0\.0"@"127.0.0.1"@g'
 
 # Replace /usr/src
 grep -Rl /usr/src | xargs -n1 sed -i -e "s@/usr/src@$IMMICH_PATH@g"
@@ -110,7 +110,7 @@ python3 -m venv $APP/machine-learning/venv
   . $APP/machine-learning/venv/bin/activate
   pip3 install poetry
   cd machine-learning
-  poetry install --no-root --with dev --with cpu
+  poetry install --no-root --with dev --with cuda
   cd ..
 )
 cp -a \
@@ -119,7 +119,7 @@ cp -a \
   machine-learning/log_conf.json \
   machine-learning/gunicorn_conf.py \
   machine-learning/app \
-    $APP/machine-learning/
+  $APP/machine-learning/
 
 # Install GeoNames
 mkdir -p $APP/geodata
@@ -130,12 +130,13 @@ wget -o - https://download.geonames.org/export/dump/cities500.zip &
 wget -o - https://raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/geojson/ne_10m_admin_0_countries.geojson &
 wait
 unzip cities500.zip
-date --iso-8601=seconds | tr -d "\n" > geodata-date.txt
+date --iso-8601=seconds | tr -d "\n" >geodata-date.txt
 rm cities500.zip
 
 # Install sharp
 cd $APP
-npm install sharp
+npm install node-addon-api node-gyp
+SHARP_LIBVIPS_EXTERNAL=1 PKG_CONFIG_PATH=/usr/local/lib/pkgconfig npm install --build-from-scratch sharp
 
 # Setup upload directory
 mkdir -p $IMMICH_PATH/upload
@@ -143,7 +144,7 @@ ln -s $IMMICH_PATH/upload $APP/
 ln -s $IMMICH_PATH/upload $APP/machine-learning/
 
 # Custom start.sh script
-cat <<EOF > $APP/start.sh
+cat <<EOF >$APP/start.sh
 #!/bin/bash
 
 set -a
@@ -154,7 +155,7 @@ cd $APP
 exec node $APP/dist/main "\$@"
 EOF
 
-cat <<EOF > $APP/machine-learning/start.sh
+cat <<EOF >$APP/machine-learning/start.sh
 #!/bin/bash
 
 set -a
