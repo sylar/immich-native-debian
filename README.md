@@ -1,7 +1,7 @@
 # Native Immich Installation Guide
 
 This guide provides instructions and helper scripts to install [Immich](https://github.com/immich-app/immich) natively (without Docker) on a Proxmox LXC container. It’s an updated version of [Immich Native](https://github.com/arter97/immich-native/tree/master) adapted for a setup that uses:
-- Proxmox and LXC containers
+- Proxmox and LXC containers (Debian 12)
 - An NVIDIA GeForce 1080ti for GPU transcoding and machine learning
 - Custom builds for [libvips](https://github.com/libvips/libvips) and [sharp](https://www.npmjs.com/package/sharp) to support HEIC/HEIF thumbnails
 
@@ -133,14 +133,14 @@ This guide provides instructions and helper scripts to install [Immich](https://
    ```bash
    sudo apt update
    sudo apt install -y git cmake meson ninja-build build-essential pkg-config \
-  libglib2.0-dev libjpeg-dev libpng-dev libtiff-dev libexif-dev libxml2-dev liborc-0.4-dev \
-  libaom-dev libarchive-dev libcairo2-dev libcgif-dev libexpat1-dev libffi-dev libfontconfig1-dev libfreetype-dev \
-  libfribidi-dev libharfbuzz-dev libheif-dev libimagequant-dev liblcms2-dev libpango1.0-dev libpixman-1-dev \
-  librsvg2-dev libspng-dev libwebp-dev zlib1g-dev libcgif-dev libcfitsio-dev libopenslide-dev libmatio-dev \
-  libpoppler-glib-dev
-  ```
+   libglib2.0-dev libjpeg-dev libpng-dev libtiff-dev libexif-dev libxml2-dev liborc-0.4-dev \
+   libaom-dev libarchive-dev libcairo2-dev libcgif-dev libexpat1-dev libffi-dev libfontconfig1-dev libfreetype-dev \
+   libfribidi-dev libharfbuzz-dev libheif-dev libimagequant-dev liblcms2-dev libpango1.0-dev libpixman-1-dev \
+   librsvg2-dev libspng-dev libwebp-dev zlib1g-dev libcgif-dev libcfitsio-dev libopenslide-dev libmatio-dev \
+   libpoppler-glib-dev
+   ```
 
-2. **Compile nifti_clib:**
+1. **Compile nifti_clib:**
    ```bash
    cd ~
    git clone https://github.com/neurolabusc/nifti_clib.git
@@ -151,21 +151,21 @@ This guide provides instructions and helper scripts to install [Immich](https://
    sudo make install
    ```
 
-3. **Compile libvips:**
+2. **Compile libvips:**
    ```bash
    cd ~
    git clone https://github.com/libvips/libvips.git
    cd libvips
    sudo meson setup build --prefix=/usr/local --buildtype=release \
-  -Dopenjpeg=enabled -Dimagequant=enabled -Dheif=enabled -Dpoppler=enabled \
-  -Drsvg=enabled -Dopenexr=enabled -Dopenslide=enabled -Dmatio=enabled \
-  -Dnifti=enabled -Dcfitsio=enabled -Dcgif=enabled -Dmagick=enabled
-  sudo ninja -C build
-  sudo ninja -C build install
-  sudo ldconfig
+   -Dopenjpeg=enabled -Dimagequant=enabled -Dheif=enabled -Dpoppler=enabled \
+   -Drsvg=enabled -Dopenexr=enabled -Dopenslide=enabled -Dmatio=enabled \
+   -Dnifti=enabled -Dcfitsio=enabled -Dcgif=enabled -Dmagick=enabled
+   sudo ninja -C build
+   sudo ninja -C build install
+   sudo ldconfig
    ```
 
-4. **Verify Installation:**
+3. **Verify Installation:**
    ```bash
    vips --version
    pkg-config --modversion vips
