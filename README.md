@@ -1,16 +1,20 @@
 # Native Immich Installation Guide
 
 This guide provides instructions and helper scripts to install [Immich](https://github.com/immich-app/immich) natively (without Docker) on a Proxmox LXC container. It’s an updated version of [Immich Native](https://github.com/arter97/immich-native/tree/master) adapted for a setup that uses:
-- Proxmox and LXC containers (Debian 12)
+- Proxmox and LXC containers
 - An NVIDIA GeForce 1080ti for GPU transcoding and machine learning
 - Custom builds for [libvips](https://github.com/libvips/libvips) and [sharp](https://www.npmjs.com/package/sharp) to support HEIC/HEIF thumbnails
 
 *Note: Officially, Immich can be installed via Docker, but this guide avoids excessive virtualization.*
 
----
+## Warning ⚠
+
+*This guide is specifically tailored for a setup using Proxmox and LXC containers running Debian 12. Please ensure compatibility with your system before proceeding.*
+
 
 ## Table of Contents
 - [Native Immich Installation Guide](#native-immich-installation-guide)
+  - [Warning ⚠](#warning-)
   - [Table of Contents](#table-of-contents)
   - [Prerequisites](#prerequisites)
   - [Preparing the LXC Container](#preparing-the-lxc-container)
@@ -22,6 +26,7 @@ This guide provides instructions and helper scripts to install [Immich](https://
     - [Redis](#redis)
     - [FFMPEG (Jellyfin version)](#ffmpeg-jellyfin-version)
     - [ImageMagick](#imagemagick)
+    - [libheif](#libheif)
     - [libvips](#libvips)
   - [Cloning and Setting Up Immich Native](#cloning-and-setting-up-immich-native)
     - [Environment Preparation](#environment-preparation)
@@ -124,7 +129,21 @@ This guide provides instructions and helper scripts to install [Immich](https://
 
 1. Install ImageMagick development libraries:
    ```bash
-   sudo apt install -y libmagickwand-dev
+   sudo apt install -y imagemagick libmagickcore-dev libmagickwand-dev
+   ```
+
+### libheif
+   ```bash
+   cd ~
+   wget https://github.com/strukturag/libheif/releases/download/v1.19.5/libheif-1.19.5.tar.gz
+   tar -xzf libheif-1.19.5.tar.gz
+   cd libheif-1.19.5
+   mkdir build
+   cd build
+   cmake .. -DCMAKE_INSTALL_PREFIX=/usr
+   make
+   sudo make install
+   sudo ldconfig
    ```
 
 ### libvips
@@ -135,7 +154,7 @@ This guide provides instructions and helper scripts to install [Immich](https://
    sudo apt install -y git cmake meson ninja-build build-essential pkg-config \
    libglib2.0-dev libjpeg-dev libpng-dev libtiff-dev libexif-dev libxml2-dev liborc-0.4-dev \
    libaom-dev libarchive-dev libcairo2-dev libcgif-dev libexpat1-dev libffi-dev libfontconfig1-dev libfreetype-dev \
-   libfribidi-dev libharfbuzz-dev libheif-dev libimagequant-dev liblcms2-dev libpango1.0-dev libpixman-1-dev \
+   libfribidi-dev libharfbuzz-dev libimagequant-dev liblcms2-dev libpango1.0-dev libpixman-1-dev \
    librsvg2-dev libspng-dev libwebp-dev zlib1g-dev libcgif-dev libcfitsio-dev libopenslide-dev libmatio-dev \
    libpoppler-glib-dev
    ```
@@ -156,11 +175,11 @@ This guide provides instructions and helper scripts to install [Immich](https://
    cd ~
    git clone https://github.com/libvips/libvips.git
    cd libvips
-   sudo meson setup build --prefix=/usr/local --buildtype=release \
+   sudo meson setup build --prefix=/usr --buildtype=release \
    -Dopenjpeg=enabled -Dimagequant=enabled -Dheif=enabled -Dpoppler=enabled \
    -Drsvg=enabled -Dopenexr=enabled -Dopenslide=enabled -Dmatio=enabled \
-   -Dnifti=enabled -Dcfitsio=enabled -Dcgif=enabled -Dmagick=enabled
-   sudo ninja -C build
+   -Dnifti=enabled -Dcfitsio=enabled -Dcgif=enabled -Dmagick=enabled -Dmodules=enabled
+   ninja -C build
    sudo ninja -C build install
    sudo ldconfig
    ```
@@ -264,7 +283,7 @@ Your local `install.sh` script already includes all the necessary modifications 
 - **Install Sharp with Custom Options:** Instead of the default command, the script installs Sharp using:
   ```bash 
   npm install node-addon-api node-gyp
-  SHARP_LIBVIPS_EXTERNAL=1 PKG_CONFIG_PATH=/usr/local/lib/pkgconfig npm install --build-from-scratch sharp 
+  SHARP_LIBVIPS_EXTERNAL=1 PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig npm install --build-from-scratch sharp 
   ```
 
 - **Network Binding:** The section that forces binding to `127.0.0.1` is commented out, allowing Immich to listen on all interfaces.

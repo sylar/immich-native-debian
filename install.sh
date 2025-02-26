@@ -136,7 +136,7 @@ rm cities500.zip
 # Install sharp
 cd $APP
 npm install node-addon-api node-gyp
-SHARP_LIBVIPS_EXTERNAL=1 PKG_CONFIG_PATH=/usr/local/lib/pkgconfig npm install --build-from-scratch sharp
+SHARP_LIBVIPS_EXTERNAL=1 PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig npm install --build-from-scratch sharp
 
 # Setup upload directory
 mkdir -p $IMMICH_PATH/upload
