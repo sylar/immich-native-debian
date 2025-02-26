@@ -65,11 +65,12 @@ This guide provides instructions and helper scripts to install [Immich](https://
    wget https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/cuda-keyring_1.1-1_all.deb
    sudo dpkg -i cuda-keyring_1.1-1_all.deb
    sudo add-apt-repository contrib
+   sudo apt update
    nano /etc/apt/sources.list.d/cuda.list
       # add if not there
       # deb https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/ /
-   sudo apt-get update
-   sudo apt-get -y install cuda-toolkit-12-4
+   sudo apt update
+   sudo apt -y install cuda-toolkit-12-4
    echo 'export PATH=/usr/local/cuda-12.4/bin:$PATH' >> ~/.bashrc
    source ~/.bashrc
    nvcc --version
