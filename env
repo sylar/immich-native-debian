@@ -2,6 +2,7 @@
 
 # Connection secret for postgres. You should change it to a random password
 DB_PASSWORD=YOUR_STRONG_RANDOM_PW
+TZ=Europe/London
 
 # The values below this line do not need to be changed
 ###################################################################################

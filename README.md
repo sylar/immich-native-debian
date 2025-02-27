@@ -4,12 +4,13 @@ This guide provides instructions and helper scripts to install [Immich](https://
 - Proxmox and LXC containers
 - An NVIDIA GeForce 1080ti for GPU transcoding and machine learning
 - Custom builds for [libvips](https://github.com/libvips/libvips) and [sharp](https://www.npmjs.com/package/sharp) to support HEIC/HEIF thumbnails
+- Uses specific timezone
 
-*Note: Officially, Immich can be installed via Docker, but this guide avoids excessive virtualization.*
+*Note: Officially, Immich can be installed via Docker, but this guide avoids excessive virtualization. The [official documentation](https://immich.app/docs) from Immich is valid, the [env variables](https://immich.app/docs/install/environment-variables/) should be places in the env file, as they will be picked up ar run time.*
 
 ## Warning ⚠
 
-*This guide is specifically tailored for a setup using Proxmox and LXC containers running Debian 12. Please ensure compatibility with your system before proceeding.*
+*This guide is specifically tailored for a setup using Proxmox and LXC containers running Debian 12 with NVIDIA GeForce 1080ti. Please ensure compatibility with your system before proceeding.*
 
 
 ## Table of Contents
