@@ -8,7 +8,7 @@ TZ=Europe/London
 ###################################################################################
 NODE_ENV=production
 
-DB_USERNAME=immich
+DB_USERNAME=immich_user
 DB_DATABASE_NAME=immich
 DB_VECTOR_EXTENSION=pgvector
 

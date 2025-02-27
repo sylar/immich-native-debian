@@ -2,6 +2,25 @@
 
 set -xeuo pipefail
 
+# Error handling function
+handle_error() {
+  local exit_code=$?
+  local line_number=$1
+  echo "Error occurred at line $line_number with exit code $exit_code"
+  
+  # Check for common errors
+  if [[ $exit_code -eq 127 ]]; then
+    echo "ERROR: Command not found. Make sure all required dependencies are installed."
+  elif [[ $exit_code -eq 1 ]]; then
+    echo "ERROR: Command failed. Check logs for details."
+  fi
+  
+  exit $exit_code
+}
+
+# Set up error trap
+trap 'handle_error $LINENO' ERR
+
 REV=v1.127.0
 
 IMMICH_PATH=/opt/immich

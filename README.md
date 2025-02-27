@@ -230,6 +230,7 @@ This guide provides instructions and helper scripts to install [Immich](https://
    create user immich_user with encrypted password 'YOUR_STRONG_RANDOM_PW';
    grant all privileges on database immich to immich_user;
    ALTER USER immich_user WITH SUPERUSER;
+   \c immich
    CREATE EXTENSION IF NOT EXISTS vector;
    \q
    ```
@@ -294,10 +295,32 @@ Your local `install.sh` script already includes all the necessary modifications 
 
 - **Network Binding:** The section that forces binding to `127.0.0.1` is commented out, allowing Immich to listen on all interfaces.
 
+- **Error Handling:** The script includes enhanced error handling that provides more detailed information about failures.
+
 Simply run your custom script to proceed with the installation: 
 ```bash 
 ./install.sh 
 ``` 
+
+## Updating Immich
+
+To update Immich to a newer version:
+
+1. **Modify the Version:** Edit the `install.sh` script and change the `REV` variable to the desired version:
+   ```bash
+   # Change this line to the version you want
+   REV=v1.127.0
+   ```
+
+2. **Run the installation script:** The script will handle the update process:
+   ```bash
+   ./install.sh
+   ```
+
+3. **Verify the update:** After the update is complete, verify that Immich is running with the new version:
+   ```bash
+   systemctl status immich
+   ```
 
 --- 
 
